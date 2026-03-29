@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>가준이</title>
+    <meta name="theme-color" content="#FF8C69" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/static/manifest.json" />
+    <style>
+      :root {
+        --bg: #2c2c2c;
+        --panel: rgba(255, 248, 242, 0.08);
+        --panel-strong: rgba(255, 248, 242, 0.12);
+        --border: rgba(255, 201, 177, 0.18);
+        --text: #fff7f2;
+        --muted: #e7c5b6;
+        --accent: #ff8c69;
+        --accent-strong: #ffb08f;
+        --assistant: #ffd9c9;
+        --user: #e9f5ff;
+        --shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+        background:
+          radial-gradient(circle at top, rgba(255, 140, 105, 0.18), transparent 34%),
+          radial-gradient(circle at bottom left, rgba(255, 214, 170, 0.12), transparent 32%),
+          linear-gradient(180deg, #393230 0%, var(--bg) 45%, #1f1f1f 100%);
+        color: var(--text);
+      }
+
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .app {
+        width: min(100%, 760px);
+        min-height: calc(100vh - 40px);
+        display: grid;
+        gap: 18px;
+        align-content: center;
+      }
+
+      .hero {
+        text-align: center;
+      }
+
+      .title {
+        margin: 0;
+        font-size: clamp(32px, 7vw, 46px);
+        font-weight: 800;
+        color: var(--accent-strong);
+        letter-spacing: -0.03em;
+      }
+
+      .subtitle {
+        margin: 10px 0 0;
+        font-size: clamp(16px, 3.5vw, 20px);
+        color: var(--muted);
+      }
+
+      .conversation {
+        min-height: 320px;
+        padding: 22px;
+        border-radius: 28px;
+        background: linear-gradient(180deg, var(--panel-strong), var(--panel));
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+        overflow: hidden;
+      }
+
+      .conversation-inner {
+        height: 100%;
+        max-height: 48vh;
+        overflow-y: auto;
+        display: grid;
+        gap: 14px;
+        padding-right: 6px;
+      }
+
+      .conversation-inner::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .conversation-inner::-webkit-scrollbar-thumb {
+        background: rgba(255, 176, 143, 0.24);
+        border-radius: 999px;
+      }
+
+      .placeholder {
+        margin: 0;
+        font-size: clamp(20px, 4.4vw, 24px);
+        line-height: 1.7;
+        color: rgba(255, 247, 242, 0.68);
+      }
+
+      .message {
+        padding: 18px 18px 20px;
+        border-radius: 24px;
+        line-height: 1.7;
+        font-size: clamp(20px, 4.3vw, 22px);
+        transform: translateY(8px);
+        opacity: 0;
+        animation: rise 220ms ease forwards;
+      }
+
+      .message[data-role="user"] {
+        background: rgba(99, 165, 214, 0.14);
+        color: var(--user);
+      }
+
+      .message[data-role="assistant"] {
+        background: rgba(255, 140, 105, 0.14);
+        color: var(--assistant);
+      }
+
+      .message-label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: rgba(255, 247, 242, 0.62);
+      }
+
+      .status-panel {
+        padding: 18px 20px;
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255, 140, 105, 0.16);
+        color: var(--accent-strong);
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .status-badge::before {
+        content: "";
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 18px currentColor;
+      }
+
+      .status-text {
+        margin: 12px 0 0;
+        font-size: clamp(17px, 3.6vw, 20px);
+        color: var(--muted);
+      }
+
+      .controls {
+        display: grid;
+        justify-items: center;
+        gap: 12px;
+      }
+
+      .toggle-button {
+        width: 140px;
+        height: 140px;
+        border: 0;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 35% 30%, #ffd3c1 0%, transparent 34%),
+          linear-gradient(180deg, #ffb397 0%, #ff8c69 100%);
+        color: #43261f;
+        font-size: 22px;
+        font-weight: 800;
+        box-shadow:
+          0 18px 32px rgba(0, 0, 0, 0.28),
+          inset 0 -8px 18px rgba(156, 66, 40, 0.22);
+        cursor: pointer;
+        transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+      }
+
+      .toggle-button:active {
+        transform: scale(0.98);
+      }
+
+      .toggle-button[aria-pressed="true"] {
+        filter: saturate(0.9) brightness(0.94);
+        box-shadow:
+          0 16px 28px rgba(0, 0, 0, 0.34),
+          inset 0 -8px 18px rgba(100, 32, 17, 0.3);
+      }
+
+      .helper {
+        margin: 0;
+        font-size: 16px;
+        color: rgba(255, 247, 242, 0.7);
+        text-align: center;
+      }
+
+      @keyframes rise {
+        from {
+          transform: translateY(8px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      @media (max-width: 640px) {
+        body {
+          padding: 14px;
+        }
+
+        .app {
+          min-height: calc(100vh - 28px);
+          gap: 16px;
+        }
+
+        .conversation {
+          min-height: 290px;
+          padding: 18px;
+        }
+
+        .conversation-inner {
+          max-height: 42vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <h1 class="title">가준이</h1>
+        <p class="subtitle">버튼 하나로 손자와 따뜻하게 이야기해요.</p>
+      </header>
+
+      <section class="conversation" aria-label="대화 내용">
+        <div id="conversationLog" class="conversation-inner">
+          <p id="placeholder" class="placeholder">
+            아래 버튼을 누르면 가준이가 연결돼요.<br />
+            천천히 말씀하시면 잘 들어드릴게요.
+          </p>
+        </div>
+      </section>
+
+      <section class="status-panel" aria-live="polite">
+        <div id="statusBadge" class="status-badge">연결 전</div>
+        <p id="statusText" class="status-text">버튼을 눌러 가준이를 불러주세요.</p>
+      </section>
+
+      <section class="controls">
+        <button
+          id="toggleButton"
+          class="toggle-button"
+          type="button"
+          aria-pressed="false"
+        >
+          시작
+        </button>
+        <p id="helperText" class="helper">
+          천천히 말씀하고 잠깐 멈추면, 가준이가 이어서 대답해요.
+        </p>
+      </section>
+    </main>
+
+    <script>
+      const INPUT_SAMPLE_RATE = 16000;
+      const OUTPUT_SAMPLE_RATE = 24000;
+      const CLIENT_ID_KEY = "gajuni-client-id";
+      const MAX_RECONNECT_ATTEMPTS = 5;
+      const RECONNECT_BASE_DELAY = 1500;
+      const SILENCE_THRESHOLD = 0.015;
+      const SILENCE_COMMIT_MS = 500;
+
+      const conversationLog = document.getElementById("conversationLog");
+      const placeholder = document.getElementById("placeholder");
+      const statusBadge = document.getElementById("statusBadge");
+      const statusText = document.getElementById("statusText");
+      const toggleButton = document.getElementById("toggleButton");
+      const helperText = document.getElementById("helperText");
+
+      let socket = null;
+      let shouldStayConnected = false;
+      let reconnectAttempts = 0;
+      let reconnectTimer = null;
+      let lastSocketErrorMessage = "";
+
+      let clientId = getClientId();
+      let conversationKey = null;
+      let mediaStream = null;
+      let inputAudioContext = null;
+      let outputAudioContext = null;
+      let micSourceNode = null;
+      let processorNode = null;
+      let processorSinkNode = null;
+      let playbackCursor = 0;
+      let activeSources = new Set();
+      let currentTurnNodes = { user: null, assistant: null };
+      let transcriptBuffers = { user: "", assistant: "" };
+      let isUserSpeaking = false;
+      let activityStarted = false;
+      let waitingForModelTurn = false;
+      let pendingTurnComplete = false;
+      let lastVoiceAt = 0;
+
+      toggleButton.addEventListener("click", async () => {
+        if (shouldStayConnected) {
+          await stopSession();
+          return;
+        }
+        await startSession();
+      });
+
+      window.addEventListener("beforeunload", () => {
+        shouldStayConnected = false;
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.close(1000, "page unload");
+        }
+      });
+
+      initialize();
+
+      async function initialize() {
+        await loadSessionInfo();
+        if ("serviceWorker" in navigator) {
+          try {
+            await navigator.serviceWorker.register("/static/service-worker.js");
+          } catch (error) {
+            console.warn("service worker registration failed", error);
+          }
+        }
+      }
+
+      async function loadSessionInfo() {
+        try {
+          const response = await fetch("/session", { cache: "no-store" });
+          if (!response.ok) {
+            helperText.textContent =
+              "서버 응답이 이상해요. 가준이 서버를 다시 켜주세요.";
+            return;
+          }
+          const info = await response.json();
+          if (!info.gemini_api_configured) {
+            helperText.textContent =
+              "서버에 GOOGLE_API_KEY가 아직 설정되지 않았어요. 먼저 환경변수를 넣어주세요.";
+            return;
+          }
+          helperText.textContent =
+            "천천히 말씀하고 잠깐 멈추면, 가준이가 이어서 대답해요.";
+        } catch (error) {
+          console.warn("session info load failed", error);
+          helperText.textContent =
+            "화면은 열렸지만 서버 응답이 없어요. 터미널에서 가준이 서버를 먼저 켜주세요.";
+        }
+      }
+
+      async function ensureServerAvailable() {
+        let response;
+        try {
+          response = await fetch("/session", { cache: "no-store" });
+        } catch (error) {
+          throw new Error(
+            "서버가 안 켜져 있어요. 터미널에서 uvicorn server:app --host 0.0.0.0 --port 8000 --reload 를 먼저 실행해 주세요."
+          );
+        }
+
+        if (!response.ok) {
+          throw new Error("서버 응답이 정상이 아니에요. 서버 로그를 확인해 주세요.");
+        }
+
+        const info = await response.json();
+        if (!info.gemini_api_configured) {
+          throw new Error("서버에 GOOGLE_API_KEY가 아직 설정되지 않았어요.");
+        }
+      }
+
+      async function startSession() {
+        shouldStayConnected = true;
+        reconnectAttempts = 0;
+        lastSocketErrorMessage = "";
+        conversationKey = conversationKey || generateConversationKey();
+        toggleButton.disabled = true;
+        setStatus("connecting", "마이크와 연결을 준비하고 있어요.");
+
+        try {
+          await ensureServerAvailable();
+          await prepareAudio();
+          await connectWebSocket();
+          setButtonState(true);
+        } catch (error) {
+          console.error(error);
+          shouldStayConnected = false;
+          conversationKey = null;
+          if (socket && socket.readyState <= WebSocket.OPEN) {
+            socket.close(1011, "startup failed");
+          }
+          socket = null;
+          await cleanupAudioResources();
+          setButtonState(false);
+          setStatus("error", `연결에 실패했어요. ${error.message || error}`);
+        } finally {
+          toggleButton.disabled = false;
+        }
+      }
+
+      async function stopSession() {
+        shouldStayConnected = false;
+        clearReconnectTimer();
+        clearPlaybackQueue();
+        currentTurnNodes = { user: null, assistant: null };
+        transcriptBuffers = { user: "", assistant: "" };
+        isUserSpeaking = false;
+        activityStarted = false;
+        waitingForModelTurn = false;
+        pendingTurnComplete = false;
+        lastVoiceAt = 0;
+
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "disconnect" }));
+          socket.close(1000, "manual disconnect");
+        }
+        socket = null;
+        conversationKey = null;
+
+        await cleanupAudioResources();
+
+        setButtonState(false);
+        setStatus("idle", "버튼을 누르면 다시 연결돼요.");
+      }
+
+      async function cleanupAudioResources() {
+        if (processorNode) {
+          processorNode.disconnect();
+          processorNode.onaudioprocess = null;
+          processorNode = null;
+        }
+
+        if (processorSinkNode) {
+          processorSinkNode.disconnect();
+          processorSinkNode = null;
+        }
+
+        if (micSourceNode) {
+          micSourceNode.disconnect();
+          micSourceNode = null;
+        }
+
+        if (mediaStream) {
+          mediaStream.getTracks().forEach((track) => track.stop());
+          mediaStream = null;
+        }
+
+        if (inputAudioContext) {
+          await inputAudioContext.close();
+          inputAudioContext = null;
+        }
+
+        if (outputAudioContext) {
+          await outputAudioContext.close();
+          outputAudioContext = null;
+        }
+      }
+
+      async function prepareAudio() {
+        if (!mediaStream) {
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              channelCount: 1,
+            },
+          });
+        }
+
+        if (!inputAudioContext) {
+          const InputContext = window.AudioContext || window.webkitAudioContext;
+          inputAudioContext = new InputContext({ sampleRate: INPUT_SAMPLE_RATE });
+          micSourceNode = inputAudioContext.createMediaStreamSource(mediaStream);
+          processorNode = inputAudioContext.createScriptProcessor(1024, 1, 1);
+          processorSinkNode = inputAudioContext.createGain();
+          processorSinkNode.gain.value = 0;
+
+          processorNode.onaudioprocess = (event) => {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+              return;
+            }
+
+            const channelData = event.inputBuffer.getChannelData(0);
+            const rms = calculateRms(channelData);
+            const now = performance.now();
+
+            if (isPlaybackActive() || waitingForModelTurn) {
+              return;
+            }
+
+            if (rms < SILENCE_THRESHOLD) {
+              if (isUserSpeaking && now - lastVoiceAt >= SILENCE_COMMIT_MS) {
+                isUserSpeaking = false;
+                activityStarted = false;
+                waitingForModelTurn = true;
+                socket.send(JSON.stringify({ type: "activity_end" }));
+                setStatus("thinking", "가준이가 듣고 생각하고 있어요.");
+              }
+              return;
+            }
+
+            if (!activityStarted) {
+              activityStarted = true;
+              socket.send(JSON.stringify({ type: "activity_start" }));
+            }
+
+            isUserSpeaking = true;
+            lastVoiceAt = now;
+
+            const pcm16 = convertFloat32ToPcm16(
+              channelData,
+              event.inputBuffer.sampleRate,
+              INPUT_SAMPLE_RATE
+            );
+
+            if (!pcm16.length) {
+              return;
+            }
+
+            socket.send(
+              JSON.stringify({
+                type: "audio",
+                data: int16ToBase64(pcm16),
+              })
+            );
+          };
+
+          micSourceNode.connect(processorNode);
+          processorNode.connect(processorSinkNode);
+          processorSinkNode.connect(inputAudioContext.destination);
+        }
+
+        if (!outputAudioContext) {
+          const OutputContext = window.AudioContext || window.webkitAudioContext;
+          outputAudioContext = new OutputContext({ sampleRate: OUTPUT_SAMPLE_RATE });
+        }
+
+        await inputAudioContext.resume();
+        await outputAudioContext.resume();
+      }
+
+      function connectWebSocket() {
+        return new Promise((resolve, reject) => {
+          clearReconnectTimer();
+          lastSocketErrorMessage = "";
+          let settled = false;
+          let readyReceived = false;
+
+          const resolveOnce = () => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            resolve();
+          };
+
+          const rejectOnce = (error) => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            reject(error);
+          };
+
+          const protocol = location.protocol === "https:" ? "wss" : "ws";
+          const wsUrl =
+            `${protocol}://${location.host}/ws?client_id=${encodeURIComponent(clientId)}` +
+            `&conversation_key=${encodeURIComponent(conversationKey || generateConversationKey())}`;
+          socket = new WebSocket(wsUrl);
+
+          socket.addEventListener("open", () => {
+            setStatus("connecting", "가준이를 깨우는 중이에요.");
+          });
+
+          socket.addEventListener("message", (event) => {
+            try {
+              const message = JSON.parse(event.data);
+              handleServerMessage(message);
+              if (message.type === "ready") {
+                readyReceived = true;
+                reconnectAttempts = 0;
+                resolveOnce();
+              }
+            } catch (error) {
+              console.error("invalid message", error);
+            }
+          });
+
+          socket.addEventListener("error", () => {
+            if (!readyReceived) {
+              rejectOnce(
+                new Error(lastSocketErrorMessage || "웹소켓 연결 중 오류가 발생했습니다.")
+              );
+            }
+          });
+
+          socket.addEventListener("close", (event) => {
+            socket = null;
+
+            if (!shouldStayConnected) {
+              if (!readyReceived) {
+                rejectOnce(new Error(lastSocketErrorMessage || event.reason || "연결이 닫혔어요."));
+              }
+              return;
+            }
+
+            if (!readyReceived) {
+              rejectOnce(
+                new Error(lastSocketErrorMessage || event.reason || "연결 준비 중 끊겼어요.")
+              );
+              return;
+            }
+
+            if (event.code === 1000) {
+              return;
+            }
+
+            scheduleReconnect(lastSocketErrorMessage || event.reason);
+          });
+        });
+      }
+
+      function handleServerMessage(message) {
+        switch (message.type) {
+          case "ready":
+            if (typeof message.conversation_key === "string" && message.conversation_key) {
+              conversationKey = message.conversation_key;
+            }
+            activityStarted = false;
+            transcriptBuffers = { user: "", assistant: "" };
+            waitingForModelTurn = false;
+            pendingTurnComplete = false;
+            setButtonState(true);
+            setStatus(
+              "listening",
+              message.resumed ? "다시 이어서 듣고 있어요." : "이제 말씀하시면 돼요."
+            );
+            return;
+          case "status":
+            if (message.state === "speaking") {
+              waitingForModelTurn = true;
+            }
+            if (
+              message.state === "listening" &&
+              !pendingTurnComplete &&
+              !isPlaybackActive() &&
+              !isUserSpeaking
+            ) {
+              waitingForModelTurn = false;
+            }
+            setStatus(message.state, message.message);
+            return;
+          case "audio":
+            playPcmChunk(message.data, message.sample_rate || OUTPUT_SAMPLE_RATE);
+            return;
+          case "transcript":
+            upsertTranscript(message.role, message.text);
+            return;
+          case "event":
+            handleEvent(message);
+            return;
+          case "error":
+            lastSocketErrorMessage = message.message || "다시 연결해주세요.";
+            activityStarted = false;
+            waitingForModelTurn = false;
+            pendingTurnComplete = false;
+            setStatus("error", lastSocketErrorMessage);
+            return;
+          default:
+            return;
+        }
+      }
+
+      function handleEvent(message) {
+        if (message.name === "interrupted") {
+          clearPlaybackQueue();
+          transcriptBuffers.assistant = "";
+          activityStarted = false;
+          waitingForModelTurn = false;
+          pendingTurnComplete = false;
+          setStatus("listening", "할머니 말씀을 다시 듣고 있어요.");
+          return;
+        }
+
+        if (message.name === "turn_complete") {
+          currentTurnNodes = { user: null, assistant: null };
+          transcriptBuffers = { user: "", assistant: "" };
+          activityStarted = false;
+          pendingTurnComplete = true;
+          if (!isPlaybackActive()) {
+            waitingForModelTurn = false;
+            pendingTurnComplete = false;
+            setStatus("listening", "듣는 중");
+          }
+          return;
+        }
+
+        if (message.name === "go_away") {
+          setStatus("reconnecting", "연결을 새로 고치고 있어요.");
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.close(4001, "refresh connection");
+          }
+        }
+      }
+
+      function setStatus(state, text) {
+        const labels = {
+          idle: "연결 전",
+          connecting: "연결 중",
+          listening: "듣는 중",
+          thinking: "생각 중",
+          speaking: "말하는 중",
+          reconnecting: "다시 연결 중",
+          error: "오류",
+        };
+
+        statusBadge.textContent = labels[state] || "안내";
+        statusText.textContent = text || "";
+      }
+
+      function setButtonState(isConnected) {
+        toggleButton.textContent = isConnected ? "종료" : "시작";
+        toggleButton.setAttribute("aria-pressed", isConnected ? "true" : "false");
+      }
+
+      function upsertTranscript(role, text) {
+        const normalizedText = normalizeTranscriptText(text);
+        if (!normalizedText) {
+          return;
+        }
+
+        if (placeholder) {
+          placeholder.remove();
+        }
+
+        const label = role === "assistant" ? "가준이" : "할머니";
+        let messageNode = currentTurnNodes[role];
+
+        if (!messageNode) {
+          messageNode = createMessageNode(role, label);
+          currentTurnNodes[role] = messageNode;
+          conversationLog.appendChild(messageNode);
+        }
+
+        const body = messageNode.querySelector("[data-body]");
+        transcriptBuffers[role] = mergeTranscript(
+          transcriptBuffers[role],
+          normalizedText
+        );
+        body.textContent = transcriptBuffers[role];
+        while (conversationLog.children.length > 8) {
+          conversationLog.removeChild(conversationLog.firstElementChild);
+        }
+        conversationLog.scrollTop = conversationLog.scrollHeight;
+      }
+
+      function createMessageNode(role, label) {
+        const message = document.createElement("article");
+        message.className = "message";
+        message.dataset.role = role;
+
+        const labelNode = document.createElement("span");
+        labelNode.className = "message-label";
+        labelNode.textContent = label;
+
+        const bodyNode = document.createElement("div");
+        bodyNode.dataset.body = "true";
+
+        message.appendChild(labelNode);
+        message.appendChild(bodyNode);
+        return message;
+      }
+
+      function generateConversationKey() {
+        if (window.crypto && typeof window.crypto.randomUUID === "function") {
+          return window.crypto.randomUUID();
+        }
+        return `conv-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      }
+
+      function scheduleReconnect(reason) {
+        if (!shouldStayConnected) {
+          return;
+        }
+
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+          shouldStayConnected = false;
+          setButtonState(false);
+          setStatus("error", "연결이 자주 끊겨서 멈췄어요. 다시 눌러주세요.");
+          return;
+        }
+
+        reconnectAttempts += 1;
+        const delay = RECONNECT_BASE_DELAY * reconnectAttempts;
+        setStatus(
+          "reconnecting",
+          reason
+            ? `다시 연결하는 중이에요. ${reason}`
+            : "잠시 후 자동으로 다시 연결할게요."
+        );
+
+        reconnectTimer = window.setTimeout(async () => {
+          try {
+            await connectWebSocket();
+          } catch (error) {
+            scheduleReconnect(error.message);
+          }
+        }, delay);
+      }
+
+      function clearReconnectTimer() {
+        if (reconnectTimer) {
+          window.clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+      }
+
+      function clearPlaybackQueue() {
+        playbackCursor = outputAudioContext ? outputAudioContext.currentTime : 0;
+        pendingTurnComplete = false;
+        activeSources.forEach((source) => {
+          try {
+            source.stop();
+          } catch (error) {
+            console.warn("source stop failed", error);
+          }
+        });
+        activeSources = new Set();
+      }
+
+      function playPcmChunk(base64Pcm, sampleRate = OUTPUT_SAMPLE_RATE) {
+        if (!outputAudioContext || !base64Pcm) {
+          return;
+        }
+
+        const int16 = base64ToInt16Array(base64Pcm);
+        if (!int16.length) {
+          return;
+        }
+
+        const float32 = new Float32Array(int16.length);
+        for (let index = 0; index < int16.length; index += 1) {
+          float32[index] = int16[index] / 32768;
+        }
+
+        const audioBuffer = outputAudioContext.createBuffer(
+          1,
+          float32.length,
+          sampleRate
+        );
+        audioBuffer.copyToChannel(float32, 0);
+
+        const source = outputAudioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(outputAudioContext.destination);
+        source.onended = () => {
+          activeSources.delete(source);
+          if (pendingTurnComplete && !isPlaybackActive()) {
+            waitingForModelTurn = false;
+            pendingTurnComplete = false;
+            setStatus("listening", "듣는 중");
+          }
+        };
+
+        const startAt = Math.max(outputAudioContext.currentTime + 0.015, playbackCursor);
+        source.start(startAt);
+        playbackCursor = startAt + audioBuffer.duration;
+        activeSources.add(source);
+      }
+
+      function isPlaybackActive() {
+        return (
+          outputAudioContext &&
+          playbackCursor > outputAudioContext.currentTime + 0.02
+        );
+      }
+
+      function calculateRms(float32Array) {
+        if (!float32Array || !float32Array.length) {
+          return 0;
+        }
+
+        let sum = 0;
+        for (let index = 0; index < float32Array.length; index += 1) {
+          const sample = float32Array[index];
+          sum += sample * sample;
+        }
+
+        return Math.sqrt(sum / float32Array.length);
+      }
+
+      function normalizeTranscriptText(text) {
+        if (!text) {
+          return "";
+        }
+
+        const normalized = String(text)
+          .replace(/[^가-힣\s.,!?~]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        return /[가-힣]/.test(normalized) ? normalized : "";
+      }
+
+      function mergeTranscript(previousText, incomingText) {
+        if (!previousText) {
+          return incomingText;
+        }
+
+        if (!incomingText || previousText === incomingText) {
+          return previousText;
+        }
+
+        if (incomingText.startsWith(previousText)) {
+          return incomingText;
+        }
+
+        if (previousText.endsWith(incomingText)) {
+          return previousText;
+        }
+
+        const overlapSize = getOverlapSize(previousText, incomingText);
+        if (overlapSize > 0) {
+          return previousText + incomingText.slice(overlapSize);
+        }
+
+        if (shouldJoinWithoutSpace(previousText, incomingText)) {
+          return previousText + incomingText;
+        }
+
+        return `${previousText} ${incomingText}`.replace(/\s+/g, " ").trim();
+      }
+
+      function getOverlapSize(previousText, incomingText) {
+        const maxLength = Math.min(previousText.length, incomingText.length);
+
+        for (let size = maxLength; size > 0; size -= 1) {
+          if (previousText.slice(-size) === incomingText.slice(0, size)) {
+            return size;
+          }
+        }
+
+        return 0;
+      }
+
+      function shouldJoinWithoutSpace(previousText, incomingText) {
+        if (!previousText || !incomingText) {
+          return false;
+        }
+
+        if (/^[,!.?~)/]/.test(incomingText)) {
+          return true;
+        }
+
+        const previousTail = (previousText.match(/[가-힣]+$/) || [""])[0];
+        const incomingHead = (incomingText.match(/^[가-힣]+/) || [""])[0];
+
+        if (!previousTail || !incomingHead) {
+          return false;
+        }
+
+        return previousTail.length <= 1 || incomingHead.length <= 1;
+      }
+
+      function convertFloat32ToPcm16(float32Array, sourceRate, targetRate) {
+        if (!float32Array || !float32Array.length) {
+          return new Int16Array();
+        }
+
+        if (sourceRate === targetRate) {
+          return floatTo16Bit(float32Array);
+        }
+
+        const ratio = sourceRate / targetRate;
+        const newLength = Math.round(float32Array.length / ratio);
+        const result = new Int16Array(newLength);
+
+        let offsetResult = 0;
+        let offsetBuffer = 0;
+        while (offsetResult < result.length) {
+          const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
+          let total = 0;
+          let count = 0;
+
+          for (
+            let index = offsetBuffer;
+            index < nextOffsetBuffer && index < float32Array.length;
+            index += 1
+          ) {
+            total += float32Array[index];
+            count += 1;
+          }
+
+          const sample = count ? total / count : 0;
+          const clamped = Math.max(-1, Math.min(1, sample));
+          result[offsetResult] = clamped < 0 ? clamped * 32768 : clamped * 32767;
+          offsetResult += 1;
+          offsetBuffer = nextOffsetBuffer;
+        }
+
+        return result;
+      }
+
+      function floatTo16Bit(float32Array) {
+        const result = new Int16Array(float32Array.length);
+        for (let index = 0; index < float32Array.length; index += 1) {
+          const sample = Math.max(-1, Math.min(1, float32Array[index]));
+          result[index] = sample < 0 ? sample * 32768 : sample * 32767;
+        }
+        return result;
+      }
+
+      function int16ToBase64(int16Array) {
+        const bytes = new Uint8Array(int16Array.buffer);
+        let binary = "";
+        const chunkSize = 0x8000;
+
+        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+          const chunk = bytes.subarray(offset, offset + chunkSize);
+          binary += String.fromCharCode(...chunk);
+        }
+
+        return btoa(binary);
+      }
+
+      function base64ToInt16Array(base64Value) {
+        const binary = atob(base64Value);
+        const bytes = new Uint8Array(binary.length);
+
+        for (let index = 0; index < binary.length; index += 1) {
+          bytes[index] = binary.charCodeAt(index);
+        }
+
+        return new Int16Array(bytes.buffer);
+      }
+
+      function getClientId() {
+        const existing = localStorage.getItem(CLIENT_ID_KEY);
+        if (existing) {
+          return existing;
+        }
+
+        const nextId =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `gajuni-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        localStorage.setItem(CLIENT_ID_KEY, nextId);
+        return nextId;
+      }
+    </script>
+  </body>
+</html>

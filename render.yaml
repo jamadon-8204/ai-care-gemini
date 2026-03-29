@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: gajuni-v2
+    runtime: python
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
+      - key: GEMINI_VOICE
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: APP_TIMEZONE
+        sync: false
+      - key: APP_FAMILY_EXTERNAL_KEY
+        sync: false
+      - key: APP_FAMILY_NAME
+        sync: false
+      - key: APP_CARE_RECIPIENT_EXTERNAL_KEY
+        sync: false
+      - key: APP_CARE_RECIPIENT_FULL_NAME
+        sync: false
+      - key: APP_CARE_RECIPIENT_DISPLAY_NAME
+        sync: false
