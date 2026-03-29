@@ -291,6 +291,8 @@
       const CLIENT_ID_KEY = "gajuni-client-id";
       const MAX_RECONNECT_ATTEMPTS = 5;
       const RECONNECT_BASE_DELAY = 1500;
+      const SESSION_PREFLIGHT_RETRIES = 4;
+      const SESSION_PREFLIGHT_DELAY_MS = 2500;
       const SILENCE_THRESHOLD = 0.015;
       const SHORT_UTTERANCE_MS = 1200;
       const SHORT_UTTERANCE_SILENCE_COMMIT_MS = 850;
@@ -362,7 +364,7 @@
           const response = await fetch("/session", { cache: "no-store" });
           if (!response.ok) {
             helperText.textContent =
-              "서버 응답이 이상해요. 가준이 서버를 다시 켜주세요.";
+              getServerUnavailableMessage();
             return;
           }
           const info = await response.json();
@@ -375,29 +377,44 @@
             "천천히 말씀하고 잠깐 멈추면, 가준이가 이어서 대답해요.";
         } catch (error) {
           console.warn("session info load failed", error);
-          helperText.textContent =
-            "화면은 열렸지만 서버 응답이 없어요. 터미널에서 가준이 서버를 먼저 켜주세요.";
+          helperText.textContent = getServerUnavailableMessage();
         }
       }
 
       async function ensureServerAvailable() {
-        let response;
-        try {
-          response = await fetch("/session", { cache: "no-store" });
-        } catch (error) {
-          throw new Error(
-            "서버가 안 켜져 있어요. 터미널에서 uvicorn server:app --host 0.0.0.0 --port 8000 --reload 를 먼저 실행해 주세요."
-          );
+        let lastError = null;
+
+        for (let attempt = 0; attempt < SESSION_PREFLIGHT_RETRIES; attempt += 1) {
+          let response;
+          try {
+            response = await fetch("/session", { cache: "no-store" });
+          } catch (error) {
+            lastError = error;
+            if (attempt < SESSION_PREFLIGHT_RETRIES - 1) {
+              await delay(SESSION_PREFLIGHT_DELAY_MS);
+              continue;
+            }
+            break;
+          }
+
+          if (!response.ok) {
+            lastError = new Error("session preflight failed");
+            if (attempt < SESSION_PREFLIGHT_RETRIES - 1) {
+              await delay(SESSION_PREFLIGHT_DELAY_MS);
+              continue;
+            }
+            break;
+          }
+
+          const info = await response.json();
+          if (!info.gemini_api_configured) {
+            throw new Error("서버에 GOOGLE_API_KEY가 아직 설정되지 않았어요.");
+          }
+          return;
         }
 
-        if (!response.ok) {
-          throw new Error("서버 응답이 정상이 아니에요. 서버 로그를 확인해 주세요.");
-        }
-
-        const info = await response.json();
-        if (!info.gemini_api_configured) {
-          throw new Error("서버에 GOOGLE_API_KEY가 아직 설정되지 않았어요.");
-        }
+        console.warn("session preflight failed", lastError);
+        throw new Error(getServerUnavailableMessage());
       }
 
       async function startSession() {
@@ -854,6 +871,23 @@
           window.clearTimeout(reconnectTimer);
           reconnectTimer = null;
         }
+      }
+
+      function delay(ms) {
+        return new Promise((resolve) => window.setTimeout(resolve, ms));
+      }
+
+      function getServerUnavailableMessage() {
+        const isLocalHost =
+          location.hostname === "localhost" ||
+          location.hostname === "127.0.0.1" ||
+          location.hostname === "0.0.0.0";
+
+        if (isLocalHost) {
+          return "서버가 안 켜져 있어요. 터미널에서 uvicorn server:app --host 0.0.0.0 --port 8000 --reload 를 먼저 실행해 주세요.";
+        }
+
+        return "가준이 서버가 아직 준비 중이거나 인터넷 연결이 잠깐 불안정해요. 잠시 후 다시 눌러주세요.";
       }
 
       function shouldCommitTurn(now, lastVoiceTimestamp, speechStartedTimestamp) {
