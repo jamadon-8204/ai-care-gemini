@@ -292,7 +292,10 @@
       const MAX_RECONNECT_ATTEMPTS = 5;
       const RECONNECT_BASE_DELAY = 1500;
       const SILENCE_THRESHOLD = 0.015;
-      const SILENCE_COMMIT_MS = 500;
+      const SHORT_UTTERANCE_MS = 1200;
+      const SHORT_UTTERANCE_SILENCE_COMMIT_MS = 850;
+      const DEFAULT_SILENCE_COMMIT_MS = 550;
+      const EARLY_PAUSE_GRACE_MS = 700;
 
       const conversationLog = document.getElementById("conversationLog");
       const placeholder = document.getElementById("placeholder");
@@ -324,6 +327,7 @@
       let waitingForModelTurn = false;
       let pendingTurnComplete = false;
       let lastVoiceAt = 0;
+      let speechStartedAt = 0;
 
       toggleButton.addEventListener("click", async () => {
         if (shouldStayConnected) {
@@ -436,6 +440,7 @@
         waitingForModelTurn = false;
         pendingTurnComplete = false;
         lastVoiceAt = 0;
+        speechStartedAt = 0;
 
         if (socket && socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: "disconnect" }));
@@ -517,10 +522,14 @@
             }
 
             if (rms < SILENCE_THRESHOLD) {
-              if (isUserSpeaking && now - lastVoiceAt >= SILENCE_COMMIT_MS) {
+              if (
+                isUserSpeaking &&
+                shouldCommitTurn(now, lastVoiceAt, speechStartedAt)
+              ) {
                 isUserSpeaking = false;
                 activityStarted = false;
                 waitingForModelTurn = true;
+                speechStartedAt = 0;
                 socket.send(JSON.stringify({ type: "activity_end" }));
                 setStatus("thinking", "가준이가 듣고 생각하고 있어요.");
               }
@@ -529,6 +538,7 @@
 
             if (!activityStarted) {
               activityStarted = true;
+              speechStartedAt = now;
               socket.send(JSON.stringify({ type: "activity_start" }));
             }
 
@@ -692,6 +702,7 @@
             activityStarted = false;
             waitingForModelTurn = false;
             pendingTurnComplete = false;
+            speechStartedAt = 0;
             setStatus("error", lastSocketErrorMessage);
             return;
           default:
@@ -706,6 +717,7 @@
           activityStarted = false;
           waitingForModelTurn = false;
           pendingTurnComplete = false;
+          speechStartedAt = 0;
           setStatus("listening", "할머니 말씀을 다시 듣고 있어요.");
           return;
         }
@@ -715,6 +727,7 @@
           transcriptBuffers = { user: "", assistant: "" };
           activityStarted = false;
           pendingTurnComplete = true;
+          speechStartedAt = 0;
           if (!isPlaybackActive()) {
             waitingForModelTurn = false;
             pendingTurnComplete = false;
@@ -841,6 +854,24 @@
           window.clearTimeout(reconnectTimer);
           reconnectTimer = null;
         }
+      }
+
+      function shouldCommitTurn(now, lastVoiceTimestamp, speechStartedTimestamp) {
+        if (!lastVoiceTimestamp) {
+          return false;
+        }
+
+        const speechElapsed = speechStartedTimestamp ? now - speechStartedTimestamp : 0;
+        if (speechElapsed > 0 && speechElapsed < EARLY_PAUSE_GRACE_MS) {
+          return false;
+        }
+
+        const silenceCommitMs =
+          speechElapsed > 0 && speechElapsed < SHORT_UTTERANCE_MS
+            ? SHORT_UTTERANCE_SILENCE_COMMIT_MS
+            : DEFAULT_SILENCE_COMMIT_MS;
+
+        return now - lastVoiceTimestamp >= silenceCommitMs;
       }
 
       function clearPlaybackQueue() {
