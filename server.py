@@ -14,7 +14,7 @@ from uuid import uuid4
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
 from google.genai import types
@@ -803,7 +803,12 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
-@app.get("/")
+@app.get("/", response_class=FileResponse)
+async def app_index() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/health")
 async def healthcheck() -> JSONResponse:
     return JSONResponse(
         {
@@ -822,7 +827,7 @@ async def session_info() -> JSONResponse:
             "voice": VOICE_NAME,
             "input_sample_rate": INPUT_SAMPLE_RATE,
             "output_sample_rate": OUTPUT_SAMPLE_RATE,
-            "frontend_url": "/static/index.html",
+            "frontend_url": "/",
             "gemini_api_configured": has_valid_api_key(),
             "supabase_storage_configured": has_supabase_storage(),
             "cors_origins": cors_origins,

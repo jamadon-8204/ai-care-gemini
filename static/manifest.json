@@ -3,7 +3,7 @@
   "short_name": "가준이",
   "description": "버튼 하나로 한국어 음성 대화를 하는 AI 손자 앱",
   "lang": "ko",
-  "start_url": "/static/index.html",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#2C2C2C",
   "theme_color": "#FF8C69",

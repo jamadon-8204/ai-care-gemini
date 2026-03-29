@@ -39,7 +39,7 @@ pip install -r requirements.txt
 uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-브라우저에서 `http://localhost:8000/static/index.html` 로 접속한다.
+브라우저에서 `http://localhost:8000/` 로 접속한다.
 
 ## 환경변수
 
