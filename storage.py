@@ -11,6 +11,8 @@ from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from prompting import PROMPT_VERSION, merge_prompt_profile
+
 
 logger = logging.getLogger("gajuni.storage")
 
@@ -79,6 +81,42 @@ FAMILY_CALL_PROMPT_PATTERNS = (
     r"아빠에게\s*바로\s*전화",
     r"바로\s*전화해",
 )
+
+
+class SupabaseStorageError(RuntimeError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str = "unknown",
+        table: Optional[str] = None,
+        status_code: Optional[int] = None,
+        raw_body: Optional[str] = None,
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.table = table
+        self.status_code = status_code
+        self.raw_body = raw_body
+
+
+def parse_supabase_error_category(
+    *,
+    status_code: int,
+    table: str,
+    error_body: str,
+) -> tuple[str, str]:
+    category = "unknown"
+    message = f"Supabase request failed: {status_code} {error_body}"
+
+    if status_code == 404 and "PGRST205" in error_body:
+        category = "missing_schema"
+        message = (
+            f"Supabase schema is missing required table '{table}'. "
+            "Apply the SQL migration before enabling storage."
+        )
+
+    return category, message
 
 
 def has_supabase_storage() -> bool:
@@ -466,9 +504,24 @@ class SupabaseRestClient:
                 raw_body = response.read().decode("utf-8")
         except urllib_error.HTTPError as exc:
             error_body = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"Supabase request failed: {exc.code} {error_body}") from exc
+            category, message = parse_supabase_error_category(
+                status_code=exc.code,
+                table=table,
+                error_body=error_body,
+            )
+            raise SupabaseStorageError(
+                message,
+                category=category,
+                table=table,
+                status_code=exc.code,
+                raw_body=error_body,
+            ) from exc
         except urllib_error.URLError as exc:
-            raise RuntimeError(f"Supabase request failed: {exc.reason}") from exc
+            raise SupabaseStorageError(
+                f"Supabase request failed: {exc.reason}",
+                category="network",
+                table=table,
+            ) from exc
 
         if not raw_body:
             return None
@@ -517,6 +570,8 @@ class ConversationStore:
     resumed: bool
     model_name: str
     voice_name: str
+    prompt_version: str = PROMPT_VERSION
+    prompt_profile: dict[str, Any] = field(default_factory=merge_prompt_profile)
     enabled: bool = field(default_factory=has_supabase_storage)
     client: Optional[SupabaseRestClient] = None
     family_id: Optional[str] = None
@@ -528,6 +583,7 @@ class ConversationStore:
     session_closed: bool = False
     connection_close_reason: Optional[str] = None
     connection_error_message: Optional[str] = None
+    disabled_reason: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not self.enabled:
@@ -542,9 +598,34 @@ class ConversationStore:
             return
         try:
             await asyncio.to_thread(self._initialize_sync)
-        except Exception:
+        except SupabaseStorageError as exc:
             self.enabled = False
+            self.disabled_reason = self._build_disabled_reason(exc)
+            if exc.category == "missing_schema":
+                logger.warning("Supabase 저장 비활성화: %s", self.disabled_reason)
+            else:
+                logger.exception("Supabase 저장 초기화 실패")
+                if not self.disabled_reason:
+                    self.disabled_reason = str(exc)
+        except Exception as exc:
+            self.enabled = False
+            self.disabled_reason = str(exc)
             logger.exception("Supabase 저장 초기화 실패")
+
+    def get_status(self) -> dict[str, Any]:
+        return {
+            "configured": has_supabase_storage(),
+            "enabled": self.enabled,
+            "disabled_reason": self.disabled_reason,
+        }
+
+    def _build_disabled_reason(self, exc: SupabaseStorageError) -> str:
+        if exc.category == "missing_schema":
+            return (
+                f"Supabase table '{exc.table}' is missing. "
+                "Apply supabase/migrations/20260327090000_initial_schema.sql."
+            )
+        return str(exc)
 
     async def update_resumption_handle(self, handle: str) -> None:
         if not self.enabled or not self.client or not self.session_id or not self.connection_id:
@@ -605,6 +686,7 @@ class ConversationStore:
                 "conversation_key": self.conversation_key,
                 "external_client_id": self.external_client_id,
                 "assistant_flags": assistant_flags,
+                "prompt_version": self.prompt_version,
             },
         }
 
@@ -655,6 +737,7 @@ class ConversationStore:
 
         recipient_row = self._upsert_care_recipient(self.family_id)
         self.care_recipient_id = recipient_row["id"]
+        self.prompt_profile = merge_prompt_profile(recipient_row.get("prompt_profile"))
 
         device_row = self._upsert_device_installation(self.care_recipient_id)
         self.device_installation_id = device_row["id"]
@@ -678,20 +761,75 @@ class ConversationStore:
         return rows[0]
 
     def _upsert_care_recipient(self, family_id: str) -> dict[str, Any]:
+        default_profile = merge_prompt_profile()
+        existing_rows = self.client.select(
+            "care_recipients",
+            query={
+                "external_key": f"eq.{DEFAULT_CARE_RECIPIENT_EXTERNAL_KEY}",
+                "select": "id,prompt_profile",
+                "limit": "1",
+            },
+        )
+        if existing_rows:
+            care_recipient_id = existing_rows[0]["id"]
+            merged_prompt_profile = merge_prompt_profile(existing_rows[0].get("prompt_profile"))
+            updated_rows = self.client.update(
+                "care_recipients",
+                {
+                    "family_id": family_id,
+                    "full_name": DEFAULT_CARE_RECIPIENT_FULL_NAME,
+                    "display_name": DEFAULT_CARE_RECIPIENT_DISPLAY_NAME,
+                    "prompt_profile": merged_prompt_profile,
+                    "active": True,
+                },
+                query={
+                    "id": f"eq.{care_recipient_id}",
+                    "select": "id,prompt_profile",
+                },
+            )
+            return updated_rows[0]
+
         payload = [
             {
                 "external_key": DEFAULT_CARE_RECIPIENT_EXTERNAL_KEY,
                 "family_id": family_id,
                 "full_name": DEFAULT_CARE_RECIPIENT_FULL_NAME,
                 "display_name": DEFAULT_CARE_RECIPIENT_DISPLAY_NAME,
-                "prompt_profile": {
-                    "role": "grandmother",
-                    "language": "ko",
-                },
+                "prompt_profile": default_profile,
             }
         ]
-        rows = self.client.upsert("care_recipients", payload, "external_key")
-        return rows[0]
+        try:
+            rows = self.client.insert("care_recipients", payload)
+            return rows[0]
+        except RuntimeError:
+            fallback_rows = self.client.select(
+                "care_recipients",
+                query={
+                    "external_key": f"eq.{DEFAULT_CARE_RECIPIENT_EXTERNAL_KEY}",
+                    "select": "id,prompt_profile",
+                    "limit": "1",
+                },
+            )
+            if not fallback_rows:
+                raise
+
+            care_recipient_id = fallback_rows[0]["id"]
+            merged_prompt_profile = merge_prompt_profile(fallback_rows[0].get("prompt_profile"))
+            updated_rows = self.client.update(
+                "care_recipients",
+                {
+                    "family_id": family_id,
+                    "full_name": DEFAULT_CARE_RECIPIENT_FULL_NAME,
+                    "display_name": DEFAULT_CARE_RECIPIENT_DISPLAY_NAME,
+                    "prompt_profile": merged_prompt_profile,
+                    "active": True,
+                },
+                query={
+                    "id": f"eq.{care_recipient_id}",
+                    "select": "id,prompt_profile",
+                },
+            )
+            return updated_rows[0]
 
     def _upsert_device_installation(self, care_recipient_id: str) -> dict[str, Any]:
         payload = [
@@ -729,6 +867,8 @@ class ConversationStore:
                     "voice_name": self.voice_name,
                     "metadata": {
                         "last_resumed": self.resumed,
+                        "prompt_version": self.prompt_version,
+                        "prompt_profile": self.prompt_profile,
                     },
                 },
                 query={
@@ -752,6 +892,8 @@ class ConversationStore:
                 "voice_name": self.voice_name,
                 "metadata": {
                     "resumed_on_open": self.resumed,
+                    "prompt_version": self.prompt_version,
+                    "prompt_profile": self.prompt_profile,
                 },
             }
         ]
@@ -767,6 +909,7 @@ class ConversationStore:
                 "opened_at": to_isoformat(now_utc()),
                 "metadata": {
                     "conversation_key": self.conversation_key,
+                    "prompt_version": self.prompt_version,
                 },
             }
         ]
